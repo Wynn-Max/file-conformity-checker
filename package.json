@@ -6,8 +6,8 @@
     "build": "echo 'No build step required' || true"
   },
   "dependencies": {
-    "node-fetch": "^3.3.2",
-    "encoding": "^0.1.13"
+    "encoding": "^0.1.13",
+    "node-fetch": "^3.3.2"
   },
   "type": "module"
 }
