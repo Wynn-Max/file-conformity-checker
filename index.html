@@ -50,22 +50,26 @@
             const [instructions, setInstructions] = React.useState('');
             const [conformityReport, setConformityReport] = React.useState(null);
             const [loading, setLoading] = React.useState(false);
+            const [error, setError] = React.useState('');
 
             // Handle instruction input
             const handleInstructionsChange = (e) => {
                 setInstructions(e.target.value);
+                setError('');
             };
 
             // Handle rubric file upload
             const handleRubricUpload = (e) => {
                 const file = e.target.files[0];
                 setRubricFile(file);
+                setError('');
             };
 
             // Handle report files upload
             const handleReportFilesUpload = (e) => {
                 const files = Array.from(e.target.files);
                 setReportFiles(files);
+                setError('');
             };
 
             // Parse DOCX files
@@ -80,7 +84,7 @@
                             const text = xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
                             resolve(text);
                         } catch (error) {
-                            reject(error);
+                            reject(new Error(`Failed to parse DOCX: ${error.message}`));
                         }
                     };
                     reader.readAsArrayBuffer(file);
@@ -102,14 +106,14 @@
                             });
                             resolve(sheetData);
                         } catch (error) {
-                            reject(error);
+                            reject(new Error(`Failed to parse Excel: ${error.message}`));
                         }
                     };
                     reader.readAsArrayBuffer(file);
                 });
             };
 
-            // Parse PDF files
+            // Parse PDF files with enhanced error handling
             const parsePdf = async (file) => {
                 return new Promise((resolve, reject) => {
                     const reader = new FileReader();
@@ -120,11 +124,15 @@
                             for (let i = 1; i <= pdf.numPages; i++) {
                                 const page = await pdf.getPage(i);
                                 const content = await page.getTextContent();
-                                text += content.items.map(item => item.str).join(' ') + ' ';
+                                text += content.items.map(item => item.str || '').join(' ') + ' ';
                             }
-                            resolve(text.replace(/\s+/g, ' ').trim());
+                            text = text.replace(/\s+/g, ' ').trim();
+                            if (!text) {
+                                reject(new Error('No text extracted from PDF. Ensure it contains selectable text.'));
+                            }
+                            resolve(text);
                         } catch (error) {
-                            reject(error);
+                            reject(new Error(`Failed to parse PDF: ${error.message}`));
                         }
                     };
                     reader.readAsArrayBuffer(file);
@@ -134,34 +142,39 @@
             // Parse requirements from rubric file and instructions
             const parseRequirements = async (rubricFile, instructionsText) => {
                 let rubricText = '';
-                if (rubricFile) {
-                    if (rubricFile.name.endsWith('.docx')) {
-                        rubricText = await parseDocx(rubricFile);
-                    } else if (rubricFile.name.endsWith('.pdf')) {
-                        rubricText = await parsePdf(rubricFile);
+                try {
+                    if (rubricFile) {
+                        if (rubricFile.name.endsWith('.docx')) {
+                            rubricText = await parseDocx(rubricFile);
+                        } else if (rubricFile.name.endsWith('.pdf')) {
+                            rubricText = await parsePdf(rubricFile);
+                        }
                     }
+                } catch (error) {
+                    throw new Error(`Error parsing rubric file: ${error.message}`);
                 }
+
                 const combinedText = `${rubricText} ${instructionsText}`.toLowerCase();
                 const requirements = [];
 
-                // Grok AI simulation: Enhanced rule-based checks
-                if (combinedText.includes('pivot table')) {
-                    requirements.push({ id: 'pivot_table', desc: 'Include pivot table with specific fields (e.g., Business Student, Athlete, Cheated)' });
-                }
-                if (combinedText.includes('bar chart')) {
-                    requirements.push({ id: 'bar_chart', desc: 'Include bar chart visualizing data, embedded in the document' });
-                }
-                if (combinedText.includes('hypothesis test')) {
-                    requirements.push({ id: 'hypothesis_tests', desc: 'Perform hypothesis tests with H0, Ha, test statistics, and p-values' });
-                }
-                if (combinedText.includes('ethical summary')) {
-                    requirements.push({ id: 'ethical_summary', desc: 'Include ethical summary with at least three references' });
-                }
-                if (combinedText.includes('apa style')) {
-                    requirements.push({ id: 'apa_style', desc: 'Follow APA Style formatting for references' });
-                }
-                if (combinedText.includes('biblical principles')) {
-                    requirements.push({ id: 'biblical_principles', desc: 'Include biblical principles in the ethical summary (e.g., Luke 16:10-12)' });
+                // Enhanced keyword matching with regex
+                const requirementPatterns = [
+                    { id: 'pivot_table', pattern: /pivot\s*table/i, desc: 'Include pivot table with specific fields (e.g., Business Student, Athlete, Cheated)' },
+                    { id: 'bar_chart', pattern: /bar\s*chart|figure|chart/i, desc: 'Include bar chart visualizing data, embedded in the document' },
+                    { id: 'hypothesis_tests', pattern: /hypothesis\s*test|hypothes[ie]s|h0|p-value/i, desc: 'Perform hypothesis tests with H0, Ha, test statistics, and p-values' },
+                    { id: 'ethical_summary', pattern: /ethical\s*summary|ethics|bretag/i, desc: 'Include ethical summary with at least three references' },
+                    { id: 'apa_style', pattern: /apa\s*style|apa\s*format/i, desc: 'Follow APA Style formatting for references' },
+                    { id: 'biblical_principles', pattern: /biblical\s*principles|luke|proverbs/i, desc: 'Include biblical principles in the ethical summary (e.g., Luke 16:10-12)' }
+                ];
+
+                requirementPatterns.forEach(({ id, pattern, desc }) => {
+                    if (pattern.test(combinedText)) {
+                        requirements.push({ id, desc });
+                    }
+                });
+
+                if (requirements.length === 0 && combinedText.trim()) {
+                    requirements.push({ id: 'general_content', desc: 'Ensure content aligns with rubric instructions' });
                 }
 
                 return requirements;
@@ -182,37 +195,40 @@
 
                 switch (requirement.id) {
                     case 'pivot_table':
-                        isConformant = contentLower.includes('pivot table');
+                        isConformant = /pivot\s*table/i.test(contentLower);
                         suggestion = isConformant ? '' : 'Include a pivot table with specified fields (e.g., Business Student, Athlete, Cheated).';
-                        feedback = isConformant ? 'Pivot table detected in the file.' : 'No pivot table found. Consider adding one to summarize data.';
+                        feedback = isConformant ? 'Pivot table detected, meeting rubric requirements.' : 'No pivot table found. The rubric requires a pivot table to summarize data.';
                         break;
                     case 'bar_chart':
-                        isConformant = contentLower.includes('bar chart') || contentLower.includes('figure') || contentLower.includes('chart');
+                        isConformant = /bar\s*chart|figure|chart/i.test(contentLower);
                         suggestion = isConformant ? '' : 'Include a bar chart visualizing data, embedded in the document.';
-                        feedback = isConformant ? 'Bar chart reference detected.' : 'No bar chart found. Embed a chart to visualize data.';
+                        feedback = isConformant ? 'Bar chart reference detected, satisfying rubric.' : 'No bar chart found. The rubric requires an embedded bar chart.';
                         break;
                     case 'hypothesis_tests':
-                        isConformant = contentLower.includes('hypothesis') || contentLower.includes('h0') || contentLower.includes('p-value');
+                        isConformant = /hypothesis|h0|p-value/i.test(contentLower);
                         suggestion = isConformant ? '' : 'Perform and document hypothesis tests, including H0, Ha, test statistics, and p-values.';
-                        feedback = isConformant ? 'Hypothesis tests documented.' : 'No hypothesis tests found. Include statistical analysis with H0, Ha, and p-values.';
+                        feedback = isConformant ? 'Hypothesis tests documented, aligning with rubric.' : 'No hypothesis tests found. The rubric requires statistical analysis with H0, Ha, and p-values.';
                         break;
                     case 'ethical_summary':
-                        isConformant = contentLower.includes('ethical') || contentLower.includes('ethics') || contentLower.includes('bretag');
+                        isConformant = /ethical|ethics|bretag/i.test(contentLower);
                         suggestion = isConformant ? '' : 'Include an ethical summary with at least three references addressing data manipulation.';
-                        feedback = isConformant ? 'Ethical summary detected.' : 'No ethical summary found. Add a section discussing ethical considerations with references.';
+                        feedback = isConformant ? 'Ethical summary detected, meeting rubric requirements.' : 'No ethical summary found. The rubric requires an ethical discussion with references.';
                         break;
                     case 'apa_style':
                         isConformant = checkAPAStyle(content);
                         suggestion = isConformant ? '' : 'Ensure references follow APA Style (e.g., Author. (Year). Title. Source.).';
-                        feedback = isConformant ? 'APA-style references detected.' : 'References do not follow APA Style. Format as Author. (Year). Title. Source.';
+                        feedback = isConformant ? 'APA-style references detected, conforming to rubric.' : 'References do not follow APA Style. The rubric requires APA formatting.';
                         break;
                     case 'biblical_principles':
-                        isConformant = contentLower.includes('biblical') || contentLower.includes('luke') || contentLower.includes('proverbs');
+                        isConformant = /biblical|luke|proverbs/i.test(contentLower);
                         suggestion = isConformant ? '' : 'Include biblical principles in the ethical summary (e.g., Luke 16:10-12).';
-                        feedback = isConformant ? 'Biblical principles included.' : 'No biblical principles found in the ethical summary. Reference scriptures like Luke 16:10-12.';
+                        feedback = isConformant ? 'Biblical principles included, satisfying rubric.' : 'No biblical principles found. The rubric requires scriptural references like Luke 16:10-12.';
                         break;
-                    default:
-                        feedback = 'No specific feedback available.';
+                    case 'general_content':
+                        isConformant = content.trim().length > 0;
+                        suggestion = isConformant ? '' : 'Ensure the file contains relevant content aligning with rubric instructions.';
+                        feedback = isConformant ? 'Content present, generally aligning with rubric.' : 'No relevant content found. Ensure the file meets rubric instructions.';
+                        break;
                 }
 
                 return { isConformant, suggestion, feedback };
@@ -222,6 +238,7 @@
             const checkConformity = async () => {
                 setLoading(true);
                 setConformityReport(null);
+                setError('');
 
                 try {
                     if (!rubricFile && !instructions) {
@@ -233,18 +250,30 @@
 
                     // Parse requirements
                     const requirements = await parseRequirements(rubricFile, instructions);
+                    if (requirements.length === 0) {
+                        throw new Error('No requirements identified in rubric or instructions. Ensure the rubric contains keywords like "pivot table" or "APA Style".');
+                    }
+
                     const fileResults = [];
 
                     // Process each report file
                     for (const file of reportFiles) {
                         let fileContent = '';
-                        if (file.name.endsWith('.docx')) {
-                            fileContent = await parseDocx(file);
-                        } else if (file.name.endsWith('.xlsx')) {
-                            const sheets = await parseExcel(file);
-                            fileContent = JSON.stringify(sheets);
-                        } else if (file.name.endsWith('.pdf')) {
-                            fileContent = await parsePdf(file);
+                        try {
+                            if (file.name.endsWith('.docx')) {
+                                fileContent = await parseDocx(file);
+                            } else if (file.name.endsWith('.xlsx')) {
+                                const sheets = await parseExcel(file);
+                                fileContent = JSON.stringify(sheets);
+                            } else if (file.name.endsWith('.pdf')) {
+                                fileContent = await parsePdf(file);
+                            }
+                        } catch (error) {
+                            fileResults.push({
+                                fileName: file.name,
+                                results: [{ requirement: 'File Processing', isConformant: false, suggestion: 'Ensure file is valid.', feedback: `Error processing file: ${error.message}` }]
+                            });
+                            continue;
                         }
 
                         const conformityResults = requirements.map(req => {
@@ -258,11 +287,11 @@
                     // Generate report
                     setConformityReport({
                         fileResults,
-                        summary: `Checked ${reportFiles.length} report file(s) against ${requirements.length} requirements.`,
+                        summary: `Checked ${reportFiles.length} report file(s) against ${requirements.length} requirements from rubric.`,
                         timestamp: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
                     });
                 } catch (error) {
-                    setConformityReport({ error: 'Error processing files: ' + error.message });
+                    setError(error.message);
                 } finally {
                     setLoading(false);
                 }
@@ -294,7 +323,7 @@
                     doc.setFontSize(12);
                     doc.text('Requirement', 20, y);
                     doc.text('Status', 80, y);
-                    doc.text('Feedback', 120, y);
+                    doc.text('Grok AI Feedback', 120, y);
                     y += 5;
                     doc.line(20, y, 190, y);
                     y += 5;
@@ -331,6 +360,13 @@
                         </h1>
                     </header>
                     <div className="p-6">
+                        {/* Error Display */}
+                        {error && (
+                            <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-md font-serif">
+                                <p>{error}</p>
+                            </div>
+                        )}
+
                         {/* Instructions Input */}
                         <div className="mb-6">
                             <h2 className="section-title text-xl mb-2 flex items-center">
@@ -395,41 +431,35 @@
                                 </h2>
                                 <p className="mb-2 font-serif"><strong>Generated on:</strong> {conformityReport.timestamp}</p>
                                 <p className="mb-4 font-serif"><strong>Summary:</strong> {conformityReport.summary}</p>
-                                {conformityReport.error ? (
-                                    <p className="text-red-600 font-serif">{conformityReport.error}</p>
-                                ) : (
-                                    <>
-                                        {conformityReport.fileResults.map((fileResult, index) => (
-                                            <div key={index} className="mb-6">
-                                                <h3 className="text-lg font-bold font-serif mb-2">File: {fileResult.fileName}</h3>
-                                                <table className="w-full border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-[#1E3A8A] text-[#D4AF37] font-serif">
-                                                            <th className="border border-[#1E3A8A] p-2 text-left">Requirement</th>
-                                                            <th className="border border-[#1E3A8A] p-2 text-left">Status</th>
-                                                            <th className="border border-[#1E3A8A] p-2 text-left">Grok AI Feedback</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {fileResult.results.map((result, i) => (
-                                                            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F5F5DC]'}>
-                                                                <td className="border border-[#1E3A8A] p-2 font-serif">{result.requirement}</td>
-                                                                <td className="border border-[#1E3A8A] p-2 font-serif">{result.isConformant ? 'Conformant' : 'Non-Conformant'}</td>
-                                                                <td className="border border-[#1E3A8A] p-2 font-serif">{result.feedback}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        ))}
-                                        <button
-                                            className="mt-4 bg-[#D4AF37] text-[#1E3A8A] p-2 rounded-md hover:bg-[#E5C76B] font-serif"
-                                            onClick={downloadPdfReport}
-                                        >
-                                            Download PDF Report
-                                        </button>
-                                    </>
-                                )}
+                                {conformityReport.fileResults.map((fileResult, index) => (
+                                    <div key={index} className="mb-6">
+                                        <h3 className="text-lg font-bold font-serif mb-2">File: {fileResult.fileName}</h3>
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="bg-[#1E3A8A] text-[#D4AF37] font-serif">
+                                                    <th className="border border-[#1E3A8A] p-2 text-left">Requirement</th>
+                                                    <th className="border border-[#1E3A8A] p-2 text-left">Status</th>
+                                                    <th className="border border-[#1E3A8A] p-2 text-left">Grok AI Feedback</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {fileResult.results.map((result, i) => (
+                                                    <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F5F5DC]'}>
+                                                        <td className="border border-[#1E3A8A] p-2 font-serif">{result.requirement}</td>
+                                                        <td className="border border-[#1E3A8A] p-2 font-serif">{result.isConformant ? 'Conformant' : 'Non-Conformant'}</td>
+                                                        <td className="border border-[#1E3A8A] p-2 font-serif">{result.feedback}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ))}
+                                <button
+                                    className="mt-4 bg-[#D4AF37] text-[#1E3A8A] p-2 rounded-md hover:bg-[#E5C76B] font-serif"
+                                    onClick={downloadPdfReport}
+                                >
+                                    Download PDF Report
+                                </button>
                             </div>
                         )}
                     </div>
