@@ -1,0 +1,13 @@
+{
+  "name": "file-conformity-checker",
+  "version": "1.0.0",
+  "description": "Academic file conformity checker",
+  "scripts": {
+    "build": "echo 'No build step required' || true"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "encoding": "^0.1.13"
+  },
+  "type": "module"
+}
