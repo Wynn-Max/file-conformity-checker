@@ -262,4 +262,69 @@
                             type="file"
                             multiple
                             accept=".docx,.xlsx,.pdf"
-                            class
+                            className="w-full p-3 border rounded-md"
+                            onChange={handleReportFilesUpload}
+                        />
+                    </div>
+
+                    {/* Check Button */}
+                    <button
+                        className="w-full bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+                        onClick={checkConformity}
+                        disabled={loading || !rubricFile || reportFiles.length === 0}
+                    >
+                        {loading ? 'Checking...' : 'Check Conformity'}
+                    </button>
+
+                    {/* Report Display */}
+                    {conformityReport && (
+                        <div className="mt-6 p-4 bg-gray-50 rounded-md">
+                            <h2 className="text-xl font-semibold mb-4">Conformity Report</h2>
+                            <p className="mb-2"><strong>Generated on:</strong> {conformityReport.timestamp}</p>
+                            <p className="mb-4"><strong>Summary:</strong> {conformityReport.summary}</p>
+                            {conformityReport.error ? (
+                                <p className="text-red-600">{conformityReport.error}</p>
+                            ) : (
+                                <>
+                                    {conformityReport.fileResults.map((fileResult, index) => (
+                                        <div key={index} className="mb-4">
+                                            <h3 className="text-lg font-medium">File: {fileResult.fileName}</h3>
+                                            <table className="w-full border-collapse">
+                                                <thead>
+                                                    <tr className="bg-gray-200">
+                                                        <th className="border p-2 text-left">Requirement</th>
+                                                        <th className="border p-2 text-left">Status</th>
+                                                        <th className="border p-2 text-left">Suggestion</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {fileResult.results.map((result, i) => (
+                                                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-100'}>
+                                                            <td className="border p-2">{result.requirement}</td>
+                                                            <td className="border p-2">{result.isConformant ? 'Conformant' : 'Non-Conformant'}</td>
+                                                            <td className="border p-2">{result.suggestion || 'None'}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ))}
+                                    <button
+                                        className="mt-4 bg-green-600 text-white p-2 rounded-md hover:bg-green-700"
+                                        onClick={downloadPdfReport}
+                                    >
+                                        Download PDF Report
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ConformityChecker />);
+    </script>
+</body>
+</html>
