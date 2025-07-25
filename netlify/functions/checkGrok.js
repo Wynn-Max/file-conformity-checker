@@ -1,4 +1,5 @@
-import fetch from 'node-fetch';
+// netlify/functions/checkGrok.js (Updated to CommonJS)
+const fetch = require('node-fetch');
 
 // Check APA style formatting
 const checkAPAStyle = (text) => {
@@ -93,7 +94,7 @@ const analyzeFile = (content, requirement) => {
 };
 
 // Netlify Function handler
-export const handler = async (event, context) => {
+exports.handler = async (event, context) => {
   try {
     console.log('Function invoked with event:', JSON.stringify(event, null, 2));
     if (event.httpMethod !== 'POST') {
