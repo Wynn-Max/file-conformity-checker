@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Conformity Checker (Updated)</title>
+    <title>File Conformity Checker | Academic Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -14,15 +14,47 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(to bottom, #F5F5DC, #E5E5D0);
+        }
+        .academic-container {
+            background-color: #FFFFFF;
+            border: 2px solid #1E3A8A;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background-color: #1E3A8A;
+            color: #D4AF37;
+            font-family: 'Times New Roman', serif;
+        }
+        .section-title {
+            color: #1E3A8A;
+            font-family: 'Times New Roman', serif;
+            font-weight: bold;
+        }
+        .icon-book {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%231E3A8A"><path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-1 16H6a1 1 0 01-1-1V6a1 1 0 011-1h12a1 1 0 011 1v12a1 1 0 01-1 1zM7 7h10v2H7V7zm0 4h10v2H7v-2zm0 4h7v2H7v-2z"/></svg>') no-repeat center;
+        }
+    </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+<body>
     <div id="root" class="container mx-auto p-6"></div>
     <script type="text/babel">
         const ConformityChecker = () => {
             const [rubricFile, setRubricFile] = React.useState(null);
             const [reportFiles, setReportFiles] = React.useState([]);
+            const [instructions, setInstructions] = React.useState('');
             const [conformityReport, setConformityReport] = React.useState(null);
             const [loading, setLoading] = React.useState(false);
+
+            // Handle instruction input
+            const handleInstructionsChange = (e) => {
+                setInstructions(e.target.value);
+            };
 
             // Handle rubric file upload
             const handleRubricUpload = (e) => {
@@ -99,20 +131,39 @@
                 });
             };
 
-            // Parse rubric file to extract requirements
-            const parseRubric = async (file) => {
-                let text = '';
-                if (file.name.endsWith('.docx')) {
-                    text = await parseDocx(file);
-                } else if (file.name.endsWith('.pdf')) {
-                    text = await parsePdf(file);
+            // Parse requirements from rubric file and instructions
+            const parseRequirements = async (rubricFile, instructionsText) => {
+                let rubricText = '';
+                if (rubricFile) {
+                    if (rubricFile.name.endsWith('.docx')) {
+                        rubricText = await parseDocx(rubricFile);
+                    } else if (rubricFile.name.endsWith('.pdf')) {
+                        rubricText = await parsePdf(rubricFile);
+                    }
                 }
+                const combinedText = `${rubricText} ${instructionsText}`.toLowerCase();
                 const requirements = [];
-                if (text.includes('pivot table')) requirements.push('Include pivot table with specific fields');
-                if (text.includes('bar chart')) requirements.push('Include bar chart visualizing data');
-                if (text.includes('hypothesis test')) requirements.push('Perform hypothesis tests with H0, Ha, and p-values');
-                if (text.includes('ethical summary')) requirements.push('Include ethical summary with references');
-                if (text.includes('APA Style')) requirements.push('Follow APA Style formatting for references');
+
+                // Grok AI simulation: Enhanced rule-based checks
+                if (combinedText.includes('pivot table')) {
+                    requirements.push({ id: 'pivot_table', desc: 'Include pivot table with specific fields (e.g., Business Student, Athlete, Cheated)' });
+                }
+                if (combinedText.includes('bar chart')) {
+                    requirements.push({ id: 'bar_chart', desc: 'Include bar chart visualizing data, embedded in the document' });
+                }
+                if (combinedText.includes('hypothesis test')) {
+                    requirements.push({ id: 'hypothesis_tests', desc: 'Perform hypothesis tests with H0, Ha, test statistics, and p-values' });
+                }
+                if (combinedText.includes('ethical summary')) {
+                    requirements.push({ id: 'ethical_summary', desc: 'Include ethical summary with at least three references' });
+                }
+                if (combinedText.includes('apa style')) {
+                    requirements.push({ id: 'apa_style', desc: 'Follow APA Style formatting for references' });
+                }
+                if (combinedText.includes('biblical principles')) {
+                    requirements.push({ id: 'biblical_principles', desc: 'Include biblical principles in the ethical summary (e.g., Luke 16:10-12)' });
+                }
+
                 return requirements;
             };
 
@@ -122,18 +173,66 @@
                 return apaRegex.test(text);
             };
 
+            // Grok AI simulation: Analyze file content
+            const analyzeFileWithGrok = (content, requirement) => {
+                const contentLower = content.toLowerCase();
+                let isConformant = false;
+                let suggestion = '';
+                let feedback = '';
+
+                switch (requirement.id) {
+                    case 'pivot_table':
+                        isConformant = contentLower.includes('pivot table');
+                        suggestion = isConformant ? '' : 'Include a pivot table with specified fields (e.g., Business Student, Athlete, Cheated).';
+                        feedback = isConformant ? 'Pivot table detected in the file.' : 'No pivot table found. Consider adding one to summarize data.';
+                        break;
+                    case 'bar_chart':
+                        isConformant = contentLower.includes('bar chart') || contentLower.includes('figure') || contentLower.includes('chart');
+                        suggestion = isConformant ? '' : 'Include a bar chart visualizing data, embedded in the document.';
+                        feedback = isConformant ? 'Bar chart reference detected.' : 'No bar chart found. Embed a chart to visualize data.';
+                        break;
+                    case 'hypothesis_tests':
+                        isConformant = contentLower.includes('hypothesis') || contentLower.includes('h0') || contentLower.includes('p-value');
+                        suggestion = isConformant ? '' : 'Perform and document hypothesis tests, including H0, Ha, test statistics, and p-values.';
+                        feedback = isConformant ? 'Hypothesis tests documented.' : 'No hypothesis tests found. Include statistical analysis with H0, Ha, and p-values.';
+                        break;
+                    case 'ethical_summary':
+                        isConformant = contentLower.includes('ethical') || contentLower.includes('ethics') || contentLower.includes('bretag');
+                        suggestion = isConformant ? '' : 'Include an ethical summary with at least three references addressing data manipulation.';
+                        feedback = isConformant ? 'Ethical summary detected.' : 'No ethical summary found. Add a section discussing ethical considerations with references.';
+                        break;
+                    case 'apa_style':
+                        isConformant = checkAPAStyle(content);
+                        suggestion = isConformant ? '' : 'Ensure references follow APA Style (e.g., Author. (Year). Title. Source.).';
+                        feedback = isConformant ? 'APA-style references detected.' : 'References do not follow APA Style. Format as Author. (Year). Title. Source.';
+                        break;
+                    case 'biblical_principles':
+                        isConformant = contentLower.includes('biblical') || contentLower.includes('luke') || contentLower.includes('proverbs');
+                        suggestion = isConformant ? '' : 'Include biblical principles in the ethical summary (e.g., Luke 16:10-12).';
+                        feedback = isConformant ? 'Biblical principles included.' : 'No biblical principles found in the ethical summary. Reference scriptures like Luke 16:10-12.';
+                        break;
+                    default:
+                        feedback = 'No specific feedback available.';
+                }
+
+                return { isConformant, suggestion, feedback };
+            };
+
             // Perform conformity check
             const checkConformity = async () => {
                 setLoading(true);
                 setConformityReport(null);
 
                 try {
-                    if (!rubricFile || reportFiles.length === 0) {
-                        throw new Error('Please upload a rubric file and at least one report file.');
+                    if (!rubricFile && !instructions) {
+                        throw new Error('Please upload a rubric file or provide instructions.');
+                    }
+                    if (reportFiles.length === 0) {
+                        throw new Error('Please upload at least one report file.');
                     }
 
-                    // Parse rubric file
-                    const requirements = await parseRubric(rubricFile);
+                    // Parse requirements
+                    const requirements = await parseRequirements(rubricFile, instructions);
                     const fileResults = [];
 
                     // Process each report file
@@ -148,29 +247,9 @@
                             fileContent = await parsePdf(file);
                         }
 
-                        const conformityResults = [];
-                        requirements.forEach(req => {
-                            let isConformant = false;
-                            let suggestion = '';
-
-                            if (req.includes('pivot table')) {
-                                isConformant = fileContent.includes('pivot table') || fileContent.includes('Pivot Table');
-                                suggestion = isConformant ? '' : 'Include a pivot table with specified fields (e.g., Business Student, Athlete, Cheated).';
-                            } else if (req.includes('bar chart')) {
-                                isConformant = fileContent.includes('bar chart') || fileContent.includes('Figure') || fileContent.includes('chart');
-                                suggestion = isConformant ? '' : 'Include a bar chart visualizing data, embedded in the document.';
-                            } else if (req.includes('hypothesis tests')) {
-                                isConformant = fileContent.includes('hypothesis') || fileContent.includes('H0') || fileContent.includes('p-value');
-                                suggestion = isConformant ? '' : 'Perform and document hypothesis tests, including H0, Ha, test statistics, and p-values.';
-                            } else if (req.includes('ethical summary')) {
-                                isConformant = fileContent.includes('ethical') || fileContent.includes('Ethics') || fileContent.includes('Bretag');
-                                suggestion = isConformant ? '' : 'Include an ethical summary with at least three references addressing data manipulation.';
-                            } else if (req.includes('APA Style')) {
-                                isConformant = checkAPAStyle(fileContent);
-                                suggestion = isConformant ? '' : 'Ensure references follow APA Style (e.g., Author. (Year). Title. Source.).';
-                            }
-
-                            conformityResults.push({ requirement: req, isConformant, suggestion });
+                        const conformityResults = requirements.map(req => {
+                            const { isConformant, suggestion, feedback } = analyzeFileWithGrok(fileContent, req);
+                            return { requirement: req.desc, isConformant, suggestion, feedback };
                         });
 
                         fileResults.push({ fileName: file.name, results: conformityResults });
@@ -179,7 +258,7 @@
                     // Generate report
                     setConformityReport({
                         fileResults,
-                        summary: `Checked ${reportFiles.length} report file(s) against ${requirements.length} requirements from rubric.`,
+                        summary: `Checked ${reportFiles.length} report file(s) against ${requirements.length} requirements.`,
                         timestamp: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
                     });
                 } catch (error) {
@@ -196,23 +275,26 @@
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
                 doc.setFont('times', 'normal');
-                doc.setFontSize(12);
+                doc.setFontSize(16);
 
                 // Title
                 doc.text('Conformity Check Report', 20, 20);
+                doc.setFontSize(12);
                 doc.text(`Generated on: ${conformityReport.timestamp}`, 20, 30);
                 doc.text(`Summary: ${conformityReport.summary}`, 20, 40);
 
                 // Results
                 let y = 50;
                 conformityReport.fileResults.forEach((fileResult, index) => {
+                    doc.setFontSize(14);
                     doc.text(`File: ${fileResult.fileName}`, 20, y);
                     y += 10;
 
                     // Table header
+                    doc.setFontSize(12);
                     doc.text('Requirement', 20, y);
                     doc.text('Status', 80, y);
-                    doc.text('Suggestion', 120, y);
+                    doc.text('Feedback', 120, y);
                     y += 5;
                     doc.line(20, y, 190, y);
                     y += 5;
@@ -221,16 +303,16 @@
                     fileResult.results.forEach(result => {
                         doc.text(result.requirement, 20, y, { maxWidth: 60 });
                         doc.text(result.isConformant ? 'Conformant' : 'Non-Conformant', 80, y);
-                        doc.text(result.suggestion || 'None', 120, y, { maxWidth: 70 });
-                        y += 10;
-                        if (y > 270) {
+                        doc.text(result.feedback, 120, y, { maxWidth: 70 });
+                        y += 15;
+                        if (y > 260) {
                             doc.addPage();
                             y = 20;
                         }
                     });
 
                     y += 10;
-                    if (y > 270) {
+                    if (y > 260) {
                         doc.addPage();
                         y = 20;
                     }
@@ -241,84 +323,119 @@
             };
 
             return (
-                <div className="bg-white p-8 rounded-lg shadow-lg max-w-3xl w-full">
-                    <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">File Conformity Checker (Updated)</h1>
-
-                    {/* Rubric File Upload */}
-                    <div className="mb-6">
-                        <label className="block text-lg font-medium text-gray-700 mb-2">Upload Rubric File (.docx, .pdf)</label>
-                        <input
-                            type="file"
-                            accept=".docx,.pdf"
-                            className="w-full p-3 border rounded-md"
-                            onChange={handleRubricUpload}
-                        />
-                    </div>
-
-                    {/* Report Files Upload */}
-                    <div className="mb-6">
-                        <label className="block text-lg font-medium text-gray-700 mb-2">Upload Report Files (.docx, .xlsx, .pdf)</label>
-                        <input
-                            type="file"
-                            multiple
-                            accept=".docx,.xlsx,.pdf"
-                            className="w-full p-3 border rounded-md"
-                            onChange={handleReportFilesUpload}
-                        />
-                    </div>
-
-                    {/* Check Button */}
-                    <button
-                        className="w-full bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-                        onClick={checkConformity}
-                        disabled={loading || !rubricFile || reportFiles.length === 0}
-                    >
-                        {loading ? 'Checking...' : 'Check Conformity'}
-                    </button>
-
-                    {/* Report Display */}
-                    {conformityReport && (
-                        <div className="mt-6 p-4 bg-gray-50 rounded-md">
-                            <h2 className="text-xl font-semibold mb-4">Conformity Report</h2>
-                            <p className="mb-2"><strong>Generated on:</strong> {conformityReport.timestamp}</p>
-                            <p className="mb-4"><strong>Summary:</strong> {conformityReport.summary}</p>
-                            {conformityReport.error ? (
-                                <p className="text-red-600">{conformityReport.error}</p>
-                            ) : (
-                                <>
-                                    {conformityReport.fileResults.map((fileResult, index) => (
-                                        <div key={index} className="mb-4">
-                                            <h3 className="text-lg font-medium">File: {fileResult.fileName}</h3>
-                                            <table className="w-full border-collapse">
-                                                <thead>
-                                                    <tr className="bg-gray-200">
-                                                        <th className="border p-2 text-left">Requirement</th>
-                                                        <th className="border p-2 text-left">Status</th>
-                                                        <th className="border p-2 text-left">Suggestion</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {fileResult.results.map((result, i) => (
-                                                        <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-100'}>
-                                                            <td className="border p-2">{result.requirement}</td>
-                                                            <td className="border p-2">{result.isConformant ? 'Conformant' : 'Non-Conformant'}</td>
-                                                            <td className="border p-2">{result.suggestion || 'None'}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    ))}
-                                    <button
-                                        className="mt-4 bg-green-600 text-white p-2 rounded-md hover:bg-green-700"
-                                        onClick={downloadPdfReport}
-                                    >
-                                        Download PDF Report
-                                    </button>
-                                </>
-                            )}
+                <div className="academic-container p-8 rounded-lg max-w-4xl w-full">
+                    <header className="header p-6 rounded-t-lg">
+                        <h1 className="text-3xl font-bold text-center flex items-center justify-center">
+                            <span className="icon-book mr-2"></span>
+                            File Conformity Checker: Academic Edition
+                        </h1>
+                    </header>
+                    <div className="p-6">
+                        {/* Instructions Input */}
+                        <div className="mb-6">
+                            <h2 className="section-title text-xl mb-2 flex items-center">
+                                <span className="icon-book mr-2"></span>
+                                Additional Instructions
+                            </h2>
+                            <textarea
+                                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#1E3A8A] font-serif"
+                                rows="5"
+                                placeholder="Paste additional instructions here (e.g., Check for biblical principles in the ethical summary)..."
+                                value={instructions}
+                                onChange={handleInstructionsChange}
+                            ></textarea>
                         </div>
-                    )}
+
+                        {/* Rubric File Upload */}
+                        <div className="mb-6">
+                            <h2 className="section-title text-xl mb-2 flex items-center">
+                                <span className="icon-book mr-2"></span>
+                                Upload Rubric File
+                            </h2>
+                            <input
+                                type="file"
+                                accept=".docx,.pdf"
+                                className="w-full p-3 border border-gray-300 rounded-md font-serif"
+                                onChange={handleRubricUpload}
+                            />
+                            <p className="text-sm text-gray-600 mt-1 font-serif">Accepted formats: .docx, .pdf</p>
+                        </div>
+
+                        {/* Report Files Upload */}
+                        <div className="mb-6">
+                            <h2 className="section-title text-xl mb-2 flex items-center">
+                                <span className="icon-book mr-2"></span>
+                                Upload Report Files
+                            </h2>
+                            <input
+                                type="file"
+                                multiple
+                                accept=".docx,.xlsx,.pdf"
+                                className="w-full p-3 border border-gray-300 rounded-md font-serif"
+                                onChange={handleReportFilesUpload}
+                            />
+                            <p className="text-sm text-gray-600 mt-1 font-serif">Accepted formats: .docx, .xlsx, .pdf</p>
+                        </div>
+
+                        {/* Check Button */}
+                        <button
+                            className="w-full bg-[#1E3A8A] text-[#D4AF37] p-3 rounded-md hover:bg-[#2F4F9F] disabled:bg-gray-400 disabled:text-gray-200 font-serif text-lg"
+                            onClick={checkConformity}
+                            disabled={loading || (!rubricFile && !instructions) || reportFiles.length === 0}
+                        >
+                            {loading ? 'Checking...' : 'Check Conformity with Grok AI'}
+                        </button>
+
+                        {/* Report Display */}
+                        {conformityReport && (
+                            <div className="mt-6 p-6 bg-[#F5F5DC] rounded-md border border-[#1E3A8A]">
+                                <h2 className="section-title text-xl mb-4 flex items-center">
+                                    <span className="icon-book mr-2"></span>
+                                    Conformity Report
+                                </h2>
+                                <p className="mb-2 font-serif"><strong>Generated on:</strong> {conformityReport.timestamp}</p>
+                                <p className="mb-4 font-serif"><strong>Summary:</strong> {conformityReport.summary}</p>
+                                {conformityReport.error ? (
+                                    <p className="text-red-600 font-serif">{conformityReport.error}</p>
+                                ) : (
+                                    <>
+                                        {conformityReport.fileResults.map((fileResult, index) => (
+                                            <div key={index} className="mb-6">
+                                                <h3 className="text-lg font-bold font-serif mb-2">File: {fileResult.fileName}</h3>
+                                                <table className="w-full border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-[#1E3A8A] text-[#D4AF37] font-serif">
+                                                            <th className="border border-[#1E3A8A] p-2 text-left">Requirement</th>
+                                                            <th className="border border-[#1E3A8A] p-2 text-left">Status</th>
+                                                            <th className="border border-[#1E3A8A] p-2 text-left">Grok AI Feedback</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {fileResult.results.map((result, i) => (
+                                                            <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-[#F5F5DC]'}>
+                                                                <td className="border border-[#1E3A8A] p-2 font-serif">{result.requirement}</td>
+                                                                <td className="border border-[#1E3A8A] p-2 font-serif">{result.isConformant ? 'Conformant' : 'Non-Conformant'}</td>
+                                                                <td className="border border-[#1E3A8A] p-2 font-serif">{result.feedback}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        ))}
+                                        <button
+                                            className="mt-4 bg-[#D4AF37] text-[#1E3A8A] p-2 rounded-md hover:bg-[#E5C76B] font-serif"
+                                            onClick={downloadPdfReport}
+                                        >
+                                            Download PDF Report
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <footer className="header p-4 rounded-b-lg text-center font-serif">
+                        <p>Powered by Grok AI Simulation | © 2025 Academic Integrity Solutions</p>
+                    </footer>
                 </div>
             );
         };
