@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Conformity Checker (Enhanced)</title>
+    <title>File Conformity Checker (Updated)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
@@ -12,37 +12,28 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center">
     <div id="root" class="container mx-auto p-6"></div>
     <script type="text/babel">
         const ConformityChecker = () => {
-            const [instructions, setInstructions] = React.useState('');
-            const [files, setFiles] = React.useState([]);
-            const [report, setReport] = React.useState(null);
+            const [rubricFile, setRubricFile] = React.useState(null);
+            const [reportFiles, setReportFiles] = React.useState([]);
+            const [conformityReport, setConformityReport] = React.useState(null);
             const [loading, setLoading] = React.useState(false);
 
-            // Handle instruction input
-            const handleInstructionsChange = (e) => {
-                setInstructions(e.target.value);
+            // Handle rubric file upload
+            const handleRubricUpload = (e) => {
+                const file = e.target.files[0];
+                setRubricFile(file);
             };
 
-            // Handle file uploads
-            const handleFileUpload = (e) => {
-                const uploadedFiles = Array.from(e.target.files);
-                setFiles(uploadedFiles);
-            };
-
-            // Parse instructions to extract requirements
-            const parseInstructions = (text) => {
-                const requirements = [];
-                if (text.includes('pivot table')) requirements.push('Include pivot table with specific fields');
-                if (text.includes('bar chart')) requirements.push('Include bar chart visualizing data');
-                if (text.includes('hypothesis test')) requirements.push('Perform hypothesis tests with H0, Ha, and p-values');
-                if (text.includes('ethical summary')) requirements.push('Include ethical summary with references');
-                if (text.includes('APA Style')) requirements.push('Follow APA Style formatting for references');
-                return requirements;
+            // Handle report files upload
+            const handleReportFilesUpload = (e) => {
+                const files = Array.from(e.target.files);
+                setReportFiles(files);
             };
 
             // Parse DOCX files
@@ -108,9 +99,25 @@
                 });
             };
 
-            // Check APA style formatting (basic regex-based)
+            // Parse rubric file to extract requirements
+            const parseRubric = async (file) => {
+                let text = '';
+                if (file.name.endsWith('.docx')) {
+                    text = await parseDocx(file);
+                } else if (file.name.endsWith('.pdf')) {
+                    text = await parsePdf(file);
+                }
+                const requirements = [];
+                if (text.includes('pivot table')) requirements.push('Include pivot table with specific fields');
+                if (text.includes('bar chart')) requirements.push('Include bar chart visualizing data');
+                if (text.includes('hypothesis test')) requirements.push('Perform hypothesis tests with H0, Ha, and p-values');
+                if (text.includes('ethical summary')) requirements.push('Include ethical summary with references');
+                if (text.includes('APA Style')) requirements.push('Follow APA Style formatting for references');
+                return requirements;
+            };
+
+            // Check APA style formatting
             const checkAPAStyle = (text) => {
-                // Regex for APA-style reference (e.g., Author. (Year). Title. Source.)
                 const apaRegex = /[A-Za-z\s.,]+ \(\d{4}\)\.\s[A-Za-z\s.,]+\.\s[A-Za-z\s.,]+/;
                 return apaRegex.test(text);
             };
@@ -118,168 +125,141 @@
             // Perform conformity check
             const checkConformity = async () => {
                 setLoading(true);
-                setReport(null);
+                setConformityReport(null);
 
                 try {
-                    const requirements = parseInstructions(instructions);
-                    const conformityResults = [];
-                    let fileContent = '';
-
-                    // Process each uploaded file
-                    for (const file of files) {
-                        if (file.name.endsWith('.docx')) {
-                            fileContent += await parseDocx(file) + ' ';
-                        } else if (file.name.endsWith('.xlsx')) {
-                            const sheets = await parseExcel(file);
-                            fileContent += JSON.stringify(sheets) + ' ';
-                        } else if (file.name.endsWith('.pdf')) {
-                            fileContent += await parsePdf(file) + ' ';
-                        }
+                    if (!rubricFile || reportFiles.length === 0) {
+                        throw new Error('Please upload a rubric file and at least one report file.');
                     }
 
-                    // Check each requirement
-                    requirements.forEach(req => {
-                        let isConformant = false;
-                        let suggestion = '';
+                    // Parse rubric file
+                    const requirements = await parseRubric(rubricFile);
+                    const fileResults = [];
 
-                        if (req.includes('pivot table')) {
-                            isConformant = fileContent.includes('pivot table') || fileContent.includes('Pivot Table');
-                            suggestion = isConformant ? '' : 'Include a pivot table with specified fields (e.g., Business Student, Athlete, Cheated).';
-                        } else if (req.includes('bar chart')) {
-                            isConformant = fileContent.includes('bar chart') || fileContent.includes('Figure') || fileContent.includes('chart');
-                            suggestion = isConformant ? '' : 'Include a bar chart visualizing data, embedded in the document.';
-                        } else if (req.includes('hypothesis tests')) {
-                            isConformant = fileContent.includes('hypothesis') || fileContent.includes('H0') || fileContent.includes('p-value');
-                            suggestion = isConformant ? '' : 'Perform and document hypothesis tests, including H0, Ha, test statistics, and p-values.';
-                        } else if (req.includes('ethical summary')) {
-                            isConformant = fileContent.includes('ethical') || fileContent.includes('Ethics') || fileContent.includes('Bretag');
-                            suggestion = isConformant ? '' : 'Include an ethical summary with at least three references addressing data manipulation.';
-                        } else if (req.includes('APA Style')) {
-                            isConformant = checkAPAStyle(fileContent);
-                            suggestion = isConformant ? '' : 'Ensure references follow APA Style (e.g., Author. (Year). Title. Source.).';
+                    // Process each report file
+                    for (const file of reportFiles) {
+                        let fileContent = '';
+                        if (file.name.endsWith('.docx')) {
+                            fileContent = await parseDocx(file);
+                        } else if (file.name.endsWith('.xlsx')) {
+                            const sheets = await parseExcel(file);
+                            fileContent = JSON.stringify(sheets);
+                        } else if (file.name.endsWith('.pdf')) {
+                            fileContent = await parsePdf(file);
                         }
 
-                        conformityResults.push({ requirement: req, isConformant, suggestion });
-                    });
+                        const conformityResults = [];
+                        requirements.forEach(req => {
+                            let isConformant = false;
+                            let suggestion = '';
+
+                            if (req.includes('pivot table')) {
+                                isConformant = fileContent.includes('pivot table') || fileContent.includes('Pivot Table');
+                                suggestion = isConformant ? '' : 'Include a pivot table with specified fields (e.g., Business Student, Athlete, Cheated).';
+                            } else if (req.includes('bar chart')) {
+                                isConformant = fileContent.includes('bar chart') || fileContent.includes('Figure') || fileContent.includes('chart');
+                                suggestion = isConformant ? '' : 'Include a bar chart visualizing data, embedded in the document.';
+                            } else if (req.includes('hypothesis tests')) {
+                                isConformant = fileContent.includes('hypothesis') || fileContent.includes('H0') || fileContent.includes('p-value');
+                                suggestion = isConformant ? '' : 'Perform and document hypothesis tests, including H0, Ha, test statistics, and p-values.';
+                            } else if (req.includes('ethical summary')) {
+                                isConformant = fileContent.includes('ethical') || fileContent.includes('Ethics') || fileContent.includes('Bretag');
+                                suggestion = isConformant ? '' : 'Include an ethical summary with at least three references addressing data manipulation.';
+                            } else if (req.includes('APA Style')) {
+                                isConformant = checkAPAStyle(fileContent);
+                                suggestion = isConformant ? '' : 'Ensure references follow APA Style (e.g., Author. (Year). Title. Source.).';
+                            }
+
+                            conformityResults.push({ requirement: req, isConformant, suggestion });
+                        });
+
+                        fileResults.push({ fileName: file.name, results: conformityResults });
+                    }
 
                     // Generate report
-                    setReport({
-                        results: conformityResults,
-                        summary: `Checked ${files.length} file(s) against ${requirements.length} requirements.`,
-                        timestamp: new Date().toLocaleString()
+                    setConformityReport({
+                        fileResults,
+                        summary: `Checked ${reportFiles.length} report file(s) against ${requirements.length} requirements from rubric.`,
+                        timestamp: new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })
                     });
                 } catch (error) {
-                    setReport({ error: 'Error processing files: ' + error.message });
+                    setConformityReport({ error: 'Error processing files: ' + error.message });
                 } finally {
                     setLoading(false);
                 }
             };
 
-            // Download report as text file
-            const downloadReport = () => {
-                if (!report) return;
-                const content = `
-                    Conformity Check Report
-                    Generated on: ${report.timestamp}
-                    Summary: ${report.summary}
+            // Generate and download PDF report
+            const downloadPdfReport = () => {
+                if (!conformityReport) return;
 
-                    Results:
-                    ${report.results.map(r => 
-                        `- Requirement: ${r.requirement}
-                          Status: ${r.isConformant ? 'Conformant' : 'Non-Conformant'}
-                          Suggestion: ${r.suggestion || 'None'}
-                        `).join('\n')}
-                `;
-                const blob = new Blob([content], { type: 'text/plain' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'conformity_report.txt';
-                a.click();
-                URL.revokeObjectURL(url);
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+                doc.setFont('times', 'normal');
+                doc.setFontSize(12);
+
+                // Title
+                doc.text('Conformity Check Report', 20, 20);
+                doc.text(`Generated on: ${conformityReport.timestamp}`, 20, 30);
+                doc.text(`Summary: ${conformityReport.summary}`, 20, 40);
+
+                // Results
+                let y = 50;
+                conformityReport.fileResults.forEach((fileResult, index) => {
+                    doc.text(`File: ${fileResult.fileName}`, 20, y);
+                    y += 10;
+
+                    // Table header
+                    doc.text('Requirement', 20, y);
+                    doc.text('Status', 80, y);
+                    doc.text('Suggestion', 120, y);
+                    y += 5;
+                    doc.line(20, y, 190, y);
+                    y += 5;
+
+                    // Table rows
+                    fileResult.results.forEach(result => {
+                        doc.text(result.requirement, 20, y, { maxWidth: 60 });
+                        doc.text(result.isConformant ? 'Conformant' : 'Non-Conformant', 80, y);
+                        doc.text(result.suggestion || 'None', 120, y, { maxWidth: 70 });
+                        y += 10;
+                        if (y > 270) {
+                            doc.addPage();
+                            y = 20;
+                        }
+                    });
+
+                    y += 10;
+                    if (y > 270) {
+                        doc.addPage();
+                        y = 20;
+                    }
+                });
+
+                // Save PDF
+                doc.save('conformity_report.pdf');
             };
 
             return (
                 <div className="bg-white p-8 rounded-lg shadow-lg max-w-3xl w-full">
-                    <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">File Conformity Checker (Enhanced)</h1>
-                    
-                    {/* Instructions Input */}
+                    <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">File Conformity Checker (Updated)</h1>
+
+                    {/* Rubric File Upload */}
                     <div className="mb-6">
-                        <label className="block text-lg font-medium text-gray-700 mb-2">Instructions</label>
-                        <textarea
-                            className="w-full p-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            rows="5"
-                            placeholder="Paste the instructions here..."
-                            value={instructions}
-                            onChange={handleInstructionsChange}
-                        ></textarea>
+                        <label className="block text-lg font-medium text-gray-700 mb-2">Upload Rubric File (.docx, .pdf)</label>
+                        <input
+                            type="file"
+                            accept=".docx,.pdf"
+                            className="w-full p-3 border rounded-md"
+                            onChange={handleRubricUpload}
+                        />
                     </div>
 
-                    {/* File Upload */}
+                    {/* Report Files Upload */}
                     <div className="mb-6">
-                        <label className="block text-lg font-medium text-gray-700 mb-2">Upload Files (.docx, .xlsx, .pdf)</label>
+                        <label className="block text-lg font-medium text-gray-700 mb-2">Upload Report Files (.docx, .xlsx, .pdf)</label>
                         <input
                             type="file"
                             multiple
                             accept=".docx,.xlsx,.pdf"
-                            className="w-full p-3 border rounded-md"
-                            onChange={handleFileUpload}
-                        />
-                    </div>
-
-                    {/* Check Button */}
-                    <button
-                        className="w-full bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700 disabled:bg-gray-400"
-                        onClick={checkConformity}
-                        disabled={loading || !instructions || files.length === 0}
-                    >
-                        {loading ? 'Checking...' : 'Check Conformity'}
-                    </button>
-
-                    {/* Report Display */}
-                    {report && (
-                        <div className="mt-6 p-4 bg-gray-50 rounded-md">
-                            <h2 className="text-xl font-semibold mb-4">Conformity Report</h2>
-                            <p className="mb-2"><strong>Generated on:</strong> {report.timestamp}</p>
-                            <p className="mb-4"><strong>Summary:</strong> {report.summary}</p>
-                            {report.error ? (
-                                <p className="text-red-600">{report.error}</p>
-                            ) : (
-                                <>
-                                    <table className="w-full border-collapse">
-                                        <thead>
-                                            <tr className="bg-gray-200">
-                                                <th className="border p-2 text-left">Requirement</th>
-                                                <th className="border p-2 text-left">Status</th>
-                                                <th className="border p-2 text-left">Suggestion</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {report.results.map((result, index) => (
-                                                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-100'}>
-                                                    <td className="border p-2">{result.requirement}</td>
-                                                    <td className="border p-2">{result.isConformant ? 'Conformant' : 'Non-Conformant'}</td>
-                                                    <td className="border p-2">{result.suggestion || 'None'}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    <button
-                                        className="mt-4 bg-green-600 text-white p-2 rounded-md hover:bg-green-700"
-                                        onClick={downloadReport}
-                                    >
-                                        Download Report
-                                    </button>
-                                </>
-                            )}
-                        </div>
-                    )}
-                </div>
-            );
-        };
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<ConformityChecker />);
-    </script>
-</body>
-</html>
+                            class
