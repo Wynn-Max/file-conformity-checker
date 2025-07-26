@@ -6,8 +6,8 @@
     "build": "echo 'No build step required' || true"
   },
   "dependencies": {
-    "node-fetch": "^2.7.0",
-    "encoding": "^0.1.13"
+    "iconv-lite": "^0.6.3",
+    "node-fetch": "^2.7.0"
   },
   "engines": {
     "node": "18.x"
