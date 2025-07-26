@@ -1,103 +1,16 @@
-// netlify/functions/checkGrok.js
 const fetch = require('node-fetch');
 
-// Check APA style formatting
-const checkAPAStyle = (text) => {
-  const apaRegex = /[A-Za-z\s.,]+ \(\d{4}\)\.\s[A-Za-z\s.,]+\.\s[A-Za-z\s.,]+/;
-  return apaRegex.test(text);
-};
-
-// Parse requirements
-const parseRequirements = (rubricText, instructionsText) => {
-  console.log('Parsing requirements with rubricText length:', rubricText?.length, 'instructionsText length:', instructionsText?.length);
-  const combinedText = `${rubricText || ''} ${instructionsText || ''}`.toLowerCase();
-  const requirements = [];
-
-  const requirementPatterns = [
-    { id: 'pivot_table', pattern: /pivot\s*table/i, desc: 'Include pivot table with specific fields (e.g., Business Student, Athlete, Cheated)', source: 'Excel documentation: https://support.microsoft.com/en-us/office/create-a-pivottable' },
-    { id: 'bar_chart', pattern: /bar\s*chart|figure|chart/i, desc: 'Include bar chart visualizing data, embedded in the document', source: 'Excel charting guide: https://support.microsoft.com/en-us/office/create-a-chart' },
-    { id: 'hypothesis_tests', pattern: /hypothesis\s*test|hypothes[ie]s|h0|p-value/i, desc: 'Perform hypothesis tests with H0, Ha, test statistics, and p-values', source: 'Statistics textbook: "Introduction to Statistics" by Weiss' },
-    { id: 'ethical_summary', pattern: /ethical\s*summary|ethics|bretag/i, desc: 'Include ethical summary with at least three references', source: 'Bretag, T. (2016). Handbook of Academic Integrity.' },
-    { id: 'apa_style', pattern: /apa\s*style|apa\s*format/i, desc: 'Follow APA Style formatting for references', source: 'APA Style Guide: https://apastyle.apa.org' },
-    { id: 'biblical_principles', pattern: /biblical\s*principles|luke|proverbs/i, desc: 'Include biblical principles in the ethical summary (e.g., Luke 16:10-12)', source: 'Holy Bible, NIV: Luke 16:10-12' }
-  ];
-
-  requirementPatterns.forEach(({ id, pattern, desc, source }) => {
-    if (pattern.test(combinedText)) {
-      requirements.push({ id, desc, source });
-    }
-  });
-
-  if (requirements.length === 0 && combinedText.trim()) {
-    requirements.push({ id: 'general_content', desc: 'Ensure content aligns with guidelines', source: 'Consult assignment guidelines.' });
-  }
-
-  console.log('Parsed requirements:', requirements.length);
-  return requirements;
-};
-
-// Analyze file content
-const analyzeFile = (content, requirement) => {
-  console.log('Analyzing file for requirement:', requirement.id);
-  const contentLower = content.toLowerCase();
-  let isConformant = false;
-  let suggestion = '';
-  let feedback = '';
-  let revisionInstruction = '';
-
-  switch (requirement.id) {
-    case 'pivot_table':
-      isConformant = /pivot\s*table/i.test(contentLower);
-      suggestion = isConformant ? '' : 'Include a pivot table with specified fields.';
-      revisionInstruction = isConformant ? '' : 'Use Excel: Insert > PivotTable, include fields like Business Student, Athlete, Cheated.';
-      feedback = isConformant ? 'Pivot table detected.' : 'No pivot table found.';
-      break;
-    case 'bar_chart':
-      isConformant = /bar\s*chart|figure|chart/i.test(contentLower);
-      suggestion = isConformant ? '' : 'Include a bar chart visualizing data.';
-      revisionInstruction = isConformant ? '' : 'Create a bar chart in Excel: Insert > Bar Chart, embed in document.';
-      feedback = isConformant ? 'Bar chart detected.' : 'No bar chart found.';
-      break;
-    case 'hypothesis_tests':
-      isConformant = /hypothesis|h0|p-value/i.test(contentLower);
-      suggestion = isConformant ? '' : 'Document hypothesis tests with H0, Ha, p-values.';
-      revisionInstruction = isConformant ? '' : 'Use Excel/SPSS: Define H0, Ha, calculate p-values, document results.';
-      feedback = isConformant ? 'Hypothesis tests documented.' : 'No hypothesis tests found.';
-      break;
-    case 'ethical_summary':
-      isConformant = /ethical|ethics|bretag/i.test(contentLower);
-      suggestion = isConformant ? '' : 'Include an ethical summary with three references.';
-      revisionInstruction = isConformant ? '' : 'Write an ethical summary citing sources (e.g., Bretag, 2016).';
-      feedback = isConformant ? 'Ethical summary detected.' : 'No ethical summary found.';
-      break;
-    case 'apa_style':
-      isConformant = checkAPAStyle(content);
-      suggestion = isConformant ? '' : 'Ensure APA Style references.';
-      revisionInstruction = isConformant ? '' : 'Format references per APA 7th: Author. (Year). Title. Source.';
-      feedback = isConformant ? 'APA-style references detected.' : 'References not in APA Style.';
-      break;
-    case 'biblical_principles':
-      isConformant = /biblical|luke|proverbs/i.test(contentLower);
-      suggestion = isConformant ? '' : 'Include biblical principles (e.g., Luke 16:10-12).';
-      revisionInstruction = isConformant ? '' : 'Add biblical principles (e.g., Luke 16:10-12) in ethical summary.';
-      feedback = isConformant ? 'Biblical principles included.' : 'No biblical principles found.';
-      break;
-    case 'general_content':
-      isConformant = content.trim().length > 0;
-      suggestion = isConformant ? '' : 'Ensure file contains relevant content.';
-      revisionInstruction = isConformant ? '' : 'Review rubric and include required content.';
-      feedback = isConformant ? 'Content present.' : 'No relevant content found.';
-      break;
-  }
-
-  return { isConformant, suggestion, feedback, revisionInstruction };
-};
-
-// Netlify Function handler
 exports.handler = async (event, context) => {
   try {
-    console.log('Function invoked with event:', JSON.stringify(event, null, 2));
+    console.log('Function invoked with event:', {
+      path: event.path,
+      method: event.httpMethod,
+      bodyLength: event.body?.length,
+      headers: event.headers
+    });
+
     if (event.httpMethod !== 'POST') {
+      console.error('Invalid HTTP method:', event.httpMethod);
       return {
         statusCode: 405,
         body: JSON.stringify({ error: 'Method not allowed' })
@@ -106,12 +19,18 @@ exports.handler = async (event, context) => {
 
     let body;
     try {
+      console.log('Parsing JSON body...');
       body = JSON.parse(event.body || '{}');
+      console.log('JSON parsed successfully:', {
+        rubricTextLength: body.rubricText?.length,
+        instructionsLength: body.instructions?.length,
+        fileContentsLength: body.fileContents?.length
+      });
     } catch (err) {
-      console.error('JSON parse error:', err.message);
+      console.error('JSON parse error:', err.message, err.stack);
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Invalid JSON body' })
+        body: JSON.stringify({ error: `Invalid JSON body: ${err.message}` })
       };
     }
 
@@ -133,17 +52,16 @@ exports.handler = async (event, context) => {
       };
     }
 
-    const requirements = parseRequirements(rubricText, instructions);
-
-    if (requirements.length === 0) {
-      console.error('No requirements identified');
+    const deepSeekApiKey = process.env.DEEPSEEK_API_KEY;
+    if (!deepSeekApiKey) {
+      console.error('Missing DEEPSEEK_API_KEY environment variable');
       return {
-        statusCode: 400,
-        body: JSON.stringify({ error: 'No requirements identified. Ensure rubric contains keywords like "pivot table".' })
+        statusCode: 500,
+        body: JSON.stringify({ error: 'Server configuration error: Missing API key' })
       };
     }
 
-    const fileResults = fileContents.map(file => {
+    const fileResults = await Promise.all(fileContents.map(async file => {
       if (file.error) {
         console.log('File error detected:', file.fileName, file.error);
         return {
@@ -153,27 +71,133 @@ exports.handler = async (event, context) => {
             isConformant: false,
             suggestion: 'Ensure file is valid.',
             feedback: file.error,
-            revisionInstruction: 'Upload a valid .docx, .xlsx, or .pdf file.'
-          }]
+            revisionInstruction: 'Upload a valid .docx, .xlsx, or .pdf file.',
+            source: 'File validation'
+          }],
+          grade: 0,
+          letterGrade: 'F'
         };
       }
 
-      const results = requirements.map(req => ({
-        ...analyzeFile(file.content, req),
-        requirement: req.desc,
-        source: req.source
-      }));
+      // Construct prompt for DeepSeek
+      const prompt = `
+        You are an academic assistant evaluating an essay against a rubric. The essay is about the Hollywood film "Avatar" (2009). The rubric requires:
+        - Systematic knowledge of recent Hollywood industrial history.
+        - Connections between Hollywood’s industrial configuration and the film.
+        - Critical awareness of recent Hollywood trends and cultural significance.
+        - A research project on the film’s cultural/commercial profile.
+        - Use of primary materials (e.g., reviews, trailers, posters, interviews).
+        - Incorporation of appropriate academic texts.
+        - Harvard or Chicago referencing style.
+        - Approximately 4,500 words (excluding notes and bibliography).
+        - Analysis of a Hollywood or US independent film made after 1967.
 
-      return { fileName: file.fileName, results };
-    });
+        Essay content:
+        ${file.content}
 
-    console.log('Returning fileResults:', fileResults.length);
+        Rubric details:
+        ${rubricText || instructions}
+
+        For each requirement, provide:
+        - Requirement description
+        - isConformant (true/false)
+        - Feedback (why it meets or fails the requirement)
+        - Suggestion (how to improve if not conformant)
+        - Revision instruction (specific steps to fix if not conformant)
+        - Source (e.g., "Module learning outcome" or "Assessment details")
+
+        Return the evaluation in JSON format with an array of results and an overall grade (0-100) and letter grade (A-F).
+      `;
+
+      try {
+        console.log('Calling DeepSeek API for file:', file.fileName);
+        const response = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${deepSeekApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            messages: [
+              { role: 'system', content: 'You are a helpful academic assistant.' },
+              { role: 'user', content: prompt }
+            ],
+            max_tokens: 4000,
+            temperature: 0.7,
+            response_format: { type: 'json_object' }
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          console.error('DeepSeek API error:', result);
+          return {
+            fileName: file.fileName,
+            results: [{
+              requirement: 'API Processing',
+              isConformant: false,
+              suggestion: 'Check API configuration.',
+              feedback: `DeepSeek API error: ${result.error?.message || 'Unknown error'}`,
+              revisionInstruction: 'Verify API key and endpoint.',
+              source: 'DeepSeek API'
+            }],
+            grade: 0,
+            letterGrade: 'F'
+          };
+        }
+
+        console.log('DeepSeek API response received:', file.fileName);
+        const evaluation = JSON.parse(result.choices[0].message.content);
+        const results = evaluation.results || [];
+        const grade = evaluation.grade || 0;
+        const letterGrade = evaluation.letterGrade || 'F';
+
+        return {
+          fileName: file.fileName,
+          results: results.map(r => ({
+            requirement: r.requirement,
+            isConformant: r.isConformant,
+            suggestion: r.suggestion || '',
+            feedback: r.feedback,
+            revisionInstruction: r.revisionInstruction || '',
+            source: r.source
+          })),
+          grade,
+          letterGrade
+        };
+      } catch (err) {
+        console.error(`Error processing file ${file.fileName}:`, err.message, err.stack);
+        return {
+          fileName: file.fileName,
+          results: [{
+            requirement: 'API Processing',
+            isConformant: false,
+            suggestion: 'Address API error.',
+            feedback: `Error: ${err.message}`,
+            revisionInstruction: 'Check API key, endpoint, or input size.',
+            source: 'DeepSeek API'
+          }],
+          grade: 0,
+          letterGrade: 'F'
+        };
+      }
+    }));
+
+    console.log('Returning fileResults:', fileResults);
     return {
       statusCode: 200,
       body: JSON.stringify({ fileResults })
     };
   } catch (error) {
-    console.error('Function error:', error.message, error.stack);
+    console.error('Function error:', {
+      message: error.message,
+      stack: error.stack,
+      event: {
+        path: event.path,
+        bodyLength: event.body?.length
+      }
+    });
     return {
       statusCode: 500,
       body: JSON.stringify({ error: `Server error: ${error.message}` })
